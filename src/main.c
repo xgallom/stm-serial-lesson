@@ -29,6 +29,7 @@ int main(void)
 	static const uint32_t delaySingle = 100000;
 
 	uint8_t delays[] = { 3, 1 };
+	// Kafka nema zivotne poistenie
 	uint8_t index = 0, isActive = 1;
 
 	for(;;) {
