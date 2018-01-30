@@ -12,6 +12,8 @@
 #include "stm32l1xx.h"
 #include "stm32l_discovery_lcd.h"
 
+#include "serial.h"
+
 int main(void)
 {
 	for(;;);
