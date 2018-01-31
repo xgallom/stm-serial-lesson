@@ -43,6 +43,13 @@ void serialInit(EnumSerial_t s)
 	gpio_init_struct.GPIO_Mode = GPIO_Mode_AF;
 	gpio_init_struct.GPIO_OType = GPIO_OType_PP;
 
+	usart_init_struct.USART_BaudRate = 9600;
+	usart_init_struct.USART_WordLength = USART_WordLength_8b;
+	usart_init_struct.USART_StopBits = USART_StopBits_1;
+	usart_init_struct.USART_Parity = USART_Parity_No;
+	usart_init_struct.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
+	usart_init_struct.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
+
 	nvic_init_struct.NVIC_IRQChannelPreemptionPriority = 0;
 	nvic_init_struct.NVIC_IRQChannelSubPriority = 0;
 	nvic_init_struct.NVIC_IRQChannelCmd = ENABLE;
@@ -80,13 +87,6 @@ void serialInit(EnumSerial_t s)
 	}
 
 	GPIO_Init(GPIOA, &gpio_init_struct);
-
-	usart_init_struct.USART_BaudRate = 9600;
-	usart_init_struct.USART_WordLength = USART_WordLength_8b;
-	usart_init_struct.USART_StopBits = USART_StopBits_1;
-	usart_init_struct.USART_Parity = USART_Parity_No;
-	usart_init_struct.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
-	usart_init_struct.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
 
 	USART_Init(usarts[s], &usart_init_struct);
 	USART_Cmd(usarts[s], ENABLE);
