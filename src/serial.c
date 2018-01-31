@@ -1,92 +1,153 @@
 #include "stm32l1xx.h"
 #include "serial.h"
 
-void serialInit(void)
-{
-	/* USART configuration structure for USART1 */
-	USART_InitTypeDef usart2_init_struct;
-	/* Bit configuration structure for GPIOA PIN9 and PIN10 */
-	GPIO_InitTypeDef gpioa_init_struct;
+#include <string.h>
 
+typedef struct SerialData {
+	uint8_t data[BUF_SIZE];
+	size_t dataCurrent, dataSize;
+} SerialData_t;
+
+static SerialData_t serialData[SerialSize];
+static bool xSerialIsInit[SerialSize] = { false, false, false };
+static USART_TypeDef *usarts[SerialSize] = { USART1, USART2, USART3 };
+
+static SerialData_t *getSerialData(enum EnumSerial s)
+{
+	return &serialData[s];
+}
+
+static bool serialIsInit(enum EnumSerial s)
+{
+	return xSerialIsInit[s];
+}
+
+void serialInit(enum EnumSerial s)
+{
+	if(serialIsInit(s))
+		return;
+
+	USART_InitTypeDef usart_init_struct;
+	GPIO_InitTypeDef gpio_init_struct;
 	NVIC_InitTypeDef nvic_init_struct;
 
-	/* Enalbe clock for USART1, AFIO and GPIOA */
-	RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
-	RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+	gpio_init_struct.GPIO_Speed = GPIO_Speed_10MHz;
+	gpio_init_struct.GPIO_Mode = GPIO_Mode_AF;
+	gpio_init_struct.GPIO_OType = GPIO_OType_PP;
 
-	/* GPIOA PIN9 alternative function Tx */
-	gpioa_init_struct.GPIO_Pin = GPIO_Pin_2;
-	gpioa_init_struct.GPIO_Speed = GPIO_Speed_10MHz;
-	gpioa_init_struct.GPIO_Mode = GPIO_Mode_AF;
-	gpioa_init_struct.GPIO_OType = GPIO_OType_PP;
-	GPIO_Init(GPIOA, &gpioa_init_struct);
-
-	/* GPIOA PIN9 alternative function Rx */
-	gpioa_init_struct.GPIO_Pin = GPIO_Pin_3;
-	gpioa_init_struct.GPIO_Speed = GPIO_Speed_10MHz;
-	gpioa_init_struct.GPIO_Mode = GPIO_Mode_IN;
-	gpioa_init_struct.GPIO_PuPd = GPIO_PuPd_NOPULL;
-	GPIO_Init(GPIOA, &gpioa_init_struct);
-
-	/* Baud rate 9600, 8-bit data, One stop bit
-	 * No parity, Do both Rx and Tx, No HW flow control
-	 */
-	usart2_init_struct.USART_BaudRate = 9600;
-	usart2_init_struct.USART_WordLength = USART_WordLength_8b;
-	usart2_init_struct.USART_StopBits = USART_StopBits_1;
-	usart2_init_struct.USART_Parity = USART_Parity_No;
-	usart2_init_struct.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
-	usart2_init_struct.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
-
-	/* Configure USART1 */
-	USART_Init(USART2, &usart2_init_struct);
-	/* Enable USART1 */
-	USART_Cmd(USART2, ENABLE);
-
-	/* Enable USART1 global interrupt */
-	nvic_init_struct.NVIC_IRQChannel = USART2_IRQn;
-	nvic_init_struct.NVIC_IRQChannelPreemptionPriority = 10;
-	nvic_init_struct.NVIC_IRQChannelSubPriority = 10;
+	nvic_init_struct.NVIC_IRQChannelPreemptionPriority = 0;
+	nvic_init_struct.NVIC_IRQChannelSubPriority = 0;
 	nvic_init_struct.NVIC_IRQChannelCmd = ENABLE;
+
+	switch(s) {
+	case Serial1:
+		RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);
+		RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+
+		gpio_init_struct.GPIO_Pin = GPIO_Pin_9 | GPIO_Pin_10;
+
+		GPIO_PinAFConfig(GPIOA, GPIO_PinSource9, GPIO_AF_USART1);
+		GPIO_PinAFConfig(GPIOA, GPIO_PinSource10, GPIO_AF_USART1);
+
+		nvic_init_struct.NVIC_IRQChannel = USART1_IRQn;
+		break;
+
+	case Serial2:
+		RCC_APB1PeriphClockCmd(RCC_APB1Periph_USART2, ENABLE);
+		RCC_AHBPeriphClockCmd(RCC_AHBPeriph_GPIOA, ENABLE);
+
+		gpio_init_struct.GPIO_Pin = GPIO_Pin_2 | GPIO_Pin_3;
+
+		GPIO_PinAFConfig(GPIOA, GPIO_PinSource2, GPIO_AF_USART2);
+		GPIO_PinAFConfig(GPIOA, GPIO_PinSource3, GPIO_AF_USART2);
+
+		nvic_init_struct.NVIC_IRQChannel = USART2_IRQn;
+		break;
+
+	case Serial3:
+		return;
+
+	default:
+		return;
+	}
+
+	GPIO_Init(GPIOA, &gpio_init_struct);
+
+	usart_init_struct.USART_BaudRate = 9600;
+	usart_init_struct.USART_WordLength = USART_WordLength_8b;
+	usart_init_struct.USART_StopBits = USART_StopBits_1;
+	usart_init_struct.USART_Parity = USART_Parity_No;
+	usart_init_struct.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
+	usart_init_struct.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
+
+	USART_Init(usarts[s], &usart_init_struct);
+	USART_Cmd(usarts[s], ENABLE);
 
 	NVIC_Init(&nvic_init_struct);
 
 	/* Enable RXNE interrupt */
-	USART_ITConfig(USART2, USART_IT_RXNE, ENABLE);
+	USART_ITConfig(usarts[s], USART_IT_RXNE, ENABLE);
+
+	xSerialIsInit[s] = true;
+	memset(serialData[s].data, 0, BUF_SIZE);
+	serialData[s].dataCurrent = serialData[s].dataSize = 0;
 }
 
-uint8_t serialAvailable(void)
+bool serialAvailable(enum EnumSerial s)
 {
-
+	return serialBytesAvailable(s) ? true : false;
 }
 
-uint8_t serialRead(void)
+size_t serialBytesAvailable(enum EnumSerial s)
 {
+	SerialData_t *ser = getSerialData(s);
 
+	if(ser->dataSize < ser->dataCurrent)
+		return BUF_SIZE + ser->dataSize - ser->dataCurrent;
+	else
+		return ser->dataSize - ser->dataCurrent;
 }
 
-void serialWrite(uint8_t data)
+static uint8_t getData(SerialData_t *ser)
 {
+	uint8_t retval = ser->data[ser->dataCurrent++];
 
+	if(ser->dataCurrent >= BUF_SIZE)
+		ser->dataCurrent = 0;
+
+	return retval;
 }
 
-static void led_toggle(void)
+static void setData(SerialData_t *ser, uint8_t data)
 {
-	GPIO_ToggleBits(GPIOB, GPIO_Pin_6);
+	ser->data[ser->dataSize++] = data;
+
+	if(ser->dataSize >= BUF_SIZE)
+		ser->dataSize = 0;
 }
 
-void USART2_IRQHandler(void)
+uint8_t serialRead(enum EnumSerial s)
 {
-	/* RXNE handler */
-	if(USART_GetITStatus(USART2, USART_IT_RXNE) != RESET)
-	{
-		/* If received 't', toggle LED and transmit 'T' */
-		if((char)USART_ReceiveData(USART2) == 't')
-		{
-			led_toggle();
-			USART_SendData(USART2, 'T');
+	while(!serialAvailable(s))
+	{}
 
-			while(USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET) {}
+	return getData(getSerialData(s));
+}
+
+void serialWrite(enum EnumSerial s, uint8_t data)
+{
+	USART_SendData(usarts[s], data);
+}
+
+#define USART_IRQ_HANDLER_IMPL(N) \
+		void USART##N##_IRQHandler(void) \
+		{ \
+			if(USART_GetITStatus(USART##N, USART_IT_RXNE) != RESET) \
+				setData(getSerialData(Serial##N), USART_ReceiveData(USART##N)); \
 		}
-	}
-}
+
+USART_IRQ_HANDLER_IMPL(1)
+USART_IRQ_HANDLER_IMPL(2)
+USART_IRQ_HANDLER_IMPL(3)
+
+#undef USART_IRQ_HANDLER_IMPL
