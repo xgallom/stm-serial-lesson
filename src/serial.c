@@ -1,3 +1,4 @@
+
 #include "stm32l1xx.h"
 #include "serial.h"
 
@@ -23,8 +24,8 @@ static USART_TypeDef *usarts[SerialSize] = { USART1, USART2, USART3 };
 
 static uint8_t getData(SerialData_t *ser);
 static void setData(SerialData_t *ser, uint8_t data);
-static SerialData_t *getSerialData(enum EnumSerial s);
-static bool serialIsInit(enum EnumSerial s);
+static SerialData_t *getSerialData(EnumSerial_t s);
+static bool serialIsInit(EnumSerial_t s);
 
 /* --------------------------------------------------------------------------------------------------------- */
 /* Extern Function Implementations */
