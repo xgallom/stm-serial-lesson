@@ -3,30 +3,38 @@
 
 #include <string.h>
 
+/* --------------------------------------------------------------------------------------------------------- */
+/* Internal Type Definitions */
+
 typedef struct SerialData {
 	uint8_t data[BUF_SIZE];
 	size_t dataCurrent, dataSize;
 } SerialData_t;
 
+/* --------------------------------------------------------------------------------------------------------- */
+/* Static Variable Declarations */
+
 static SerialData_t serialData[SerialSize];
-static bool xSerialIsInit[SerialSize] = { false, false, false };
+static bool sSerialIsInit[SerialSize] = { false, false, false };
 static USART_TypeDef *usarts[SerialSize] = { USART1, USART2, USART3 };
 
-static SerialData_t *getSerialData(enum EnumSerial s)
-{
-	return &serialData[s];
-}
+/* --------------------------------------------------------------------------------------------------------- */
+/* Static Function Declarations */
 
-static bool serialIsInit(enum EnumSerial s)
-{
-	return xSerialIsInit[s];
-}
+static uint8_t getData(SerialData_t *ser);
+static void setData(SerialData_t *ser, uint8_t data);
+static SerialData_t *getSerialData(enum EnumSerial s);
+static bool serialIsInit(enum EnumSerial s);
 
-void serialInit(enum EnumSerial s)
+/* --------------------------------------------------------------------------------------------------------- */
+/* Extern Function Implementations */
+
+void serialInit(EnumSerial_t s)
 {
 	if(serialIsInit(s))
 		return;
 
+	/* STM USART Configuration */
 	USART_InitTypeDef usart_init_struct;
 	GPIO_InitTypeDef gpio_init_struct;
 	NVIC_InitTypeDef nvic_init_struct;
@@ -85,20 +93,20 @@ void serialInit(enum EnumSerial s)
 
 	NVIC_Init(&nvic_init_struct);
 
-	/* Enable RXNE interrupt */
 	USART_ITConfig(usarts[s], USART_IT_RXNE, ENABLE);
 
-	xSerialIsInit[s] = true;
+	/* Internal Variable Modifications */
+	sSerialIsInit[s] = true;
 	memset(serialData[s].data, 0, BUF_SIZE);
 	serialData[s].dataCurrent = serialData[s].dataSize = 0;
 }
 
-bool serialAvailable(enum EnumSerial s)
+bool serialAvailable(EnumSerial_t s)
 {
 	return serialBytesAvailable(s) ? true : false;
 }
 
-size_t serialBytesAvailable(enum EnumSerial s)
+size_t serialBytesAvailable(EnumSerial_t s)
 {
 	SerialData_t *ser = getSerialData(s);
 
@@ -106,6 +114,32 @@ size_t serialBytesAvailable(enum EnumSerial s)
 		return BUF_SIZE + ser->dataSize - ser->dataCurrent;
 	else
 		return ser->dataSize - ser->dataCurrent;
+}
+
+uint8_t serialRead(EnumSerial_t s)
+{
+	while(!serialAvailable(s))
+	{}
+
+	return getData(getSerialData(s));
+}
+
+void serialWrite(EnumSerial_t s, uint8_t data)
+{
+	USART_SendData(usarts[s], data);
+}
+
+/* --------------------------------------------------------------------------------------------------------- */
+/* Static Function Implementations */
+
+static SerialData_t *getSerialData(EnumSerial_t s)
+{
+	return &serialData[s];
+}
+
+static bool serialIsInit(EnumSerial_t s)
+{
+	return sSerialIsInit[s];
 }
 
 static uint8_t getData(SerialData_t *ser)
@@ -126,18 +160,8 @@ static void setData(SerialData_t *ser, uint8_t data)
 		ser->dataSize = 0;
 }
 
-uint8_t serialRead(enum EnumSerial s)
-{
-	while(!serialAvailable(s))
-	{}
-
-	return getData(getSerialData(s));
-}
-
-void serialWrite(enum EnumSerial s, uint8_t data)
-{
-	USART_SendData(usarts[s], data);
-}
+/* --------------------------------------------------------------------------------------------------------- */
+/* IRQ Handlers Implementation */
 
 #define USART_IRQ_HANDLER_IMPL(N) \
 		void USART##N##_IRQHandler(void) \
