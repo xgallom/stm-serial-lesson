@@ -14,6 +14,27 @@
 
 #include "serial.h"
 
+static void toggleLed(void)
+{
+	GPIO_ToggleBits(GPIOB, GPIO_Pin_6);
+}
+
+static void setup(void)
+{
+	serialInit(Serial1);
+}
+
+static void loop(void)
+{
+	if(serialAvailable(Serial1)) {
+		uint8_t c = serialRead(Serial1);
+
+		serialWrite(Serial1, c - 'a' + 'A');
+
+		toggleLed();
+	}
+}
+
 int main(void)
 {
 	NVIC_PriorityGroupConfig(NVIC_PriorityGroup_0);
@@ -26,10 +47,8 @@ int main(void)
 	init.GPIO_Pin = GPIO_Pin_6;
 	GPIO_Init(GPIOB, &init);
 
-	serialInit();
+	setup();
 
-//	GPIO_ToggleBits(GPIOB, GPIO_Pin_6);
-
-	for(;;) {
-	}
+	for(;;)
+		loop();
 }
